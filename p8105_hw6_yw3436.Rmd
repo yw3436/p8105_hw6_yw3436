@@ -286,6 +286,8 @@ For the distribution of the r-squares, it is a slightly right-skewed distributio
 
 For the distribution of the log(beta0*beta1), the distribution is a symmetric normal distribution with a peak of 2.02.
 
+The two distributions are close to normal distribution because we have 5000 estimates in total and the central limit therom is applicable to the two estimates.
+
 Identify the 95%CI for the two estimates:
 
 ```{r}
