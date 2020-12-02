@@ -100,32 +100,204 @@ model_results %>%
 
 ## Problem 2
 
-Find some residuals:
+First, read the data and check all variable type.
 ```{r}
-baby_df = read_csv()
+baby_df = read_csv("./data/birthweight.csv") %>% 
+  mutate(
+    babysex = case_when(
+      babysex == "1" ~ "male",
+      babysex == "2" ~ "female",
+      TRUE ~ as.character(babysex)
+    ),
+    frace = case_when(
+      frace == "1" ~ "white",
+      frace == "2" ~ "black",
+      frace == "3" ~ "Asian",
+      frace == "4" ~ "Puerto Rican",
+      frace == "8" ~ "Other",
+      frace == "9" ~ "Unknown",
+      TRUE ~ as.character(frace)
+    ),
+    malform = case_when(
+      malform == "0" ~ "absent",
+      malform == "1" ~ "present",
+      TRUE ~ as.character(malform)
+    ),
+    mrace = case_when(
+      mrace == "1" ~ "white",
+      mrace == "2" ~ "black",
+      mrace == "3" ~ "Asian",
+      mrace == "4" ~ "Puerto Rican",
+      mrace == "8" ~ "Other",
+      mrace == "9" ~ "Unknown",
+      TRUE ~ as.character(mrace)
+    ))
+
+baby_df %>% 
+  count(pnumlbw)
+baby_df %>% 
+  count(pnumsga)
+
+###### How to quickly identify missing values. will it be considered normal as for some people, the bwt is too small.
+
 ```
 
-fit a model:
-```{r}
-model_fit = lm(bwt ~ gaweeks, data = baby_df)
-```
+
+
+Second, use previous knowledge and the backward modeling method to find the appropriate the model.
+
+For the outcome variable, the following plot shows that the birthweight is about normally distributed, so we will use linear regression.
 
 ```{r}
 baby_df %>% 
-  modelr::add_residuals(model_fit) %>% 
-  ggplot(aes(x = resid))+
-  geom_density()
+  ggplot(aes(x = bwt)) + 
+  geom_histogram()
 ```
 
-conclusion: the residuals are not heavily skewed and normal
+Since we have the ppbmi variable, we will exclude the mother's height and pre-pregnancy weight in the model to avoid over adjusting. Also, since wtgain was calculated by delwt and ppwt, we will remove delwt. Additionally, pnumlbw and pnumgsa are two variables that seem to be closely correlated, and all participants have 0 for the two variables, we will remove the two.
+
+Then, I will add all the other variables into the model for backward selection.
 
 ```{r}
+model_naive = lm(bwt ~ babysex + bhead + blength + fincome + frace + gaweeks + malform + menarche + momage + mrace + parity + ppbmi + smoken + wtgain, data = baby_df)
+
+model_naive %>% 
+  broom::tidy() %>% 
+  select(term, estimate, p.value) %>% 
+  knitr::kable(digits = 3)
+```
+
+After comparing the P-values with the pre-set value of 0.05, we will include `babysex`, `bhead`, `blength`, `fincome`, `gaweeks`, `parity`, `ppbmi`, `smoken` and `wtgain` into our model to predict baby birthweight.
+
+Next, we will draw a plot for the residuals against the fitted values.
+```{r}
+model_1 = lm(bwt ~ babysex + bhead + blength + fincome + gaweeks + parity + ppbmi + smoken + wtgain, data = baby_df) 
+
 baby_df %>% 
-  modelr::add_residuals(model_fit) %>% 
-  ggplot(aes(x = gaweeks, y = resid))+
+  add_predictions(model_1, var = "predicted") %>% 
+  add_residuals(model_1, var = "resid") %>% 
+  ggplot(aes(x = predicted, y = resid))+
   geom_point()
 ```
 
-conclusion: whether there are outlier values or trends that shows this is not linear relationship
+The scatter plot shows that for most observations, the residuals are not heavily skewed and there is no clear trend between the fitted value and the residuals when the predicted birthweight is larger than 2000g. However, when the predicted values are smaller than 2000, there seems to be a decreasing trend of the residuals, which we may consider as outliers.
 
+#### Compare my model with the other two models using cross validation
+
+```{r}
+model_2 = lm(bwt ~ blength + gaweeks, data = baby_df)
+model_3 = lm(bwt ~ bhead * blength * babysex, data = baby_df)
+```
+
+```{r}
+cv_df = 
+  crossv_mc(baby_df, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)) %>% 
+  mutate(
+    model_1 = map(train, ~lm(bwt ~ babysex + bhead + blength + fincome + gaweeks + parity + ppbmi + smoken + wtgain, data = .x)),
+    model_2 = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    model_3 = map(train, ~lm(bwt ~ bhead * blength * babysex, data = .x))) %>% 
+  mutate(
+    rmse_1 = map2_dbl(model_1, test, ~rmse(model = .x, data = .y)),
+    rmse_2 = map2_dbl(model_2, test, ~rmse(model = .x, data = .y)),
+    rmse_3 = map2_dbl(model_3, test, ~rmse(model = .x, data = .y)),
+  )
+
+rmse_df = cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") 
+
+rmse_df %>% 
+  group_by(model) %>% 
+  summarize(avg_rmse = mean(rmse)) %>% 
+  knitr::kable()
+
+rmse_df %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+
+```
+
+According to the average RMSE value and the violin plot, the first model (with `babysex`, `bhead`, `blength`, `fincome`, `gaweeks`, `parity`, `ppbmi`, `smoken` and `wtgain`) is the best as it have the lowest RMSE. The model with `bhead`, `blength` `babysex`, and all the interactions is the second fitted model, while the model with only `blength` and `gaweeks` are the worst one.
+
+We would like to use the first model for future analysis and prediction.
+
+## Problem 3
+
+First, load the data.
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+
+Second, conduct bootstrapping and calculate the estimated R square and log(beta0*beta1).
+
+```{r, cache = TRUE}
+boot_straps = 
+  weather_df %>% 
+  modelr::bootstrap(n = 5000)  %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x) ),
+    betas = map(models, broom::tidy),
+    rsq = map(models, broom::glance)) 
+
+strap_df = boot_straps %>% 
+  select(-strap, -models) %>% 
+  unnest(betas, rsq) %>% 
+  select(.id, term, estimate, r.squared) %>% 
+  pivot_wider(
+    names_from = term,
+    values_from = estimate
+  ) %>% 
+  janitor::clean_names() %>% 
+  mutate(
+    log_product = log(intercept*tmin)
+  )
+```
+
+Third, make the plot to show the distribution of the estimated R square and log(beta0*beta1).
+
+```{r}
+strap_df %>% 
+  ggplot(aes(x = r_squared)) + 
+  geom_density()
+
+strap_df %>% 
+  ggplot(aes(x = log_product)) + 
+  geom_density()
+```
+
+For the distribution of the r-squares, it is a slightly right-skewed distribution with a peak of 0.915.
+
+For the distribution of the log(beta0*beta1), the distribution is a symmetric normal distribution with a peak of 2.02.
+
+Identify the 95%CI for the two estimates:
+
+```{r}
+strap_df %>% 
+  summarize(
+    r_ci_lower = quantile(r_squared, 0.025), 
+    r_ci_upper = quantile(r_squared, 0.975),
+    log_ci_lower = quantile(log_product, 0.025), 
+    log_ci_upper = quantile(log_product, 0.975),
+    ) %>% 
+  knitr::kable(digit = 3)
+```
+
+The result shows that the 95%CI for r-square is (0.894, 0.927), and for log(beta0*beta1) is (1.965, 2.059).
 
