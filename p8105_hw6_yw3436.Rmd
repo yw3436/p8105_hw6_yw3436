@@ -247,7 +247,7 @@ weather_df =
 
 Second, conduct bootstrapping and calculate the estimated R square and log(beta0*beta1).
 
-```{r, cache = TRUE}
+```{r}
 boot_straps = 
   weather_df %>% 
   modelr::bootstrap(n = 5000)  %>% 
