@@ -138,13 +138,10 @@ baby_df %>%
 baby_df %>% 
   count(pnumsga)
 
-###### How to quickly identify missing values. will it be considered normal as for some people, the bwt is too small.
-
 ```
 
 
-
-Second, use previous knowledge and the backward modeling method to find the appropriate the model.
+Second, use common knowledge and the backward modeling method to find the appropriate the model.
 
 For the outcome variable, the following plot shows that the birthweight is about normally distributed, so we will use linear regression.
 
@@ -154,7 +151,7 @@ baby_df %>%
   geom_histogram()
 ```
 
-Since we have the ppbmi variable, we will exclude the mother's height and pre-pregnancy weight in the model to avoid over adjusting. Also, since wtgain was calculated by delwt and ppwt, we will remove delwt. Additionally, pnumlbw and pnumgsa are two variables that seem to be closely correlated, and all participants have 0 for the two variables, we will remove the two.
+Since we have the ppbmi variable, we will exclude the mother's height and pre-pregnancy weight in the model to avoid over-adjustment. Also, since wtgain was calculated by delwt and ppwt, we will remove delwt. Additionally, pnumlbw and pnumgsa are two variables that seem to be closely correlated, and all participants have 0 for the two variables, we will remove the two from the model.
 
 Then, I will add all the other variables into the model for backward selection.
 
@@ -167,7 +164,7 @@ model_naive %>%
   knitr::kable(digits = 3)
 ```
 
-After comparing the P-values with the pre-set value of 0.05, we will include `babysex`, `bhead`, `blength`, `fincome`, `gaweeks`, `parity`, `ppbmi`, `smoken` and `wtgain` into our model to predict baby birthweight.
+After comparing the P-values with the pre-set alpha of 0.05, we will include `babysex`, `bhead`, `blength`, `fincome`, `gaweeks`, `parity`, `ppbmi`, `smoken` and `wtgain` into our model to predict baby birthweight.
 
 Next, we will draw a plot for the residuals against the fitted values.
 ```{r}
