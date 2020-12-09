@@ -281,7 +281,7 @@ strap_df %>%
 
 For the distribution of the r-squares, it is a slightly left-skewed distribution with a peak of 0.915.
 
-For the distribution of the log(beta0*beta1), the distribution is also slightly left-skewed, with a peak of 2.02.
+For the distribution of the log(beta0*beta1), the distribution is also slightly left-skewed and asymmetrical, with a peak of 2.02.
 
 Though we have 5000 estimates in total the distribution for the two data doesn't follow exact normal distribution.
 
